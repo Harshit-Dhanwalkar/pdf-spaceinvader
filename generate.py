@@ -96,6 +96,12 @@ function fire_bullet() {
     bullets.push({ x: player_x, y: player_y - 1 });
 }
 
+// Create and spawn a new enemy object
+function spawn_enemy() {
+    var random_x = Math.floor(Math.random() * ###GRID_WIDTH###); // Random X position
+    enemies.push({ x: random_x, y: 0 }); // Start at the top row
+}
+
 // Update bullets and redraw them
 function update_bullets() {
     for (var i = 0; i < bullets.length; ++i) {
@@ -120,6 +126,10 @@ var player_x; // X position of the square
 var player_y; // Y position of the square
 var pixel_fields = []; // Array to hold references to PDF form fields (pixels)
 var player_color = [0, 0, 0]; 
+var enemies = []; // Array to hold falling enemy objects
+var ENEMY_COLOR = [1, 0, 0];
+var ENEMY_SPAWN_RATE = 10;
+var spawn_counter = 0;
 
 var TICK_INTERVAL = 50; // How often the game refreshes (milliseconds)
 var interval = 0; // Interval ID for clearing later
@@ -147,7 +157,7 @@ function game_init() {
 
     // Set initial position of the square (center of the grid)
     player_x = Math.floor(###GRID_WIDTH### / 2);
-    player_y = 2 // Math.floor(###GRID_HEIGHT### / 2);
+    player_y = Math.floor(###GRID_HEIGHT### - 4);
 
     // Start the game loop (calls game_tick repeatedly)
     interval = setInterval(game_tick, TICK_INTERVAL);
@@ -229,7 +239,35 @@ function set_pixel(x, y, state, color = player_color) {
     }
 }
 
-// Draws the current state of the game (only the player square)
+// Draw enemies
+function draw_enemies() {
+    for (var i = 0; i < enemies.length; ++i) {
+        set_pixel(enemies[i].x, enemies[i].y, true, ENEMY_COLOR);
+    }
+}
+
+// Update enemies and remove them if off-screen
+function update_enemies() {
+    // Move existing enemies down
+    for (var i = 0; i < enemies.length; ++i) {
+        enemies[i].y += 1; // Move down by one pixel
+    }
+
+    // Remove enemies off screen
+    enemies = enemies.filter(function (e) {
+        return e.y >= 0; // Keep enemies that are on or above the bottom row
+    });
+
+    // Spawn new enemies periodically
+    spawn_counter++;
+    if (spawn_counter >= ENEMY_SPAWN_RATE) {
+        spawn_enemy();
+        spawn_counter = 0; // Reset counter
+    }
+}
+
+
+// Draws the current state of the game (player, bullets, and enemies)
 function draw() {
     // First, clear the entire grid by hiding all pixels
     for (var x = 0; x < ###GRID_WIDTH###; ++x) {
@@ -243,11 +281,15 @@ function draw() {
 
     // Draw bullets
     draw_bullets();
+
+    // Draw enemies
+    draw_enemies();
 }
 
 // The main game loop function, called repeatedly by setInterval
 function game_tick() {
     update_bullets();
+    update_enemies();
     draw();
 }
 
@@ -566,93 +608,6 @@ for x in range(GRID_WIDTH):
 BUTTON_WIDTH = 50
 BUTTON_HEIGHT = 45
 BUTTON_SPACING = 4
-
-# # Define the Y-coordinate for the bottom row of buttons (LEFT, DOWN, RIGHT)
-# Y_BUTTON_BOTTOM_ROW = GRID_OFF_Y - 110
-#
-# # X-coordinates for the bottom row (relative to GRID_OFF_X)
-# X_LEFT_BUTTON = 260
-# X_DOWN_BUTTON = X_LEFT_BUTTON + BUTTON_WIDTH + BUTTON_SPACING
-# X_RIGHT_BUTTON = X_DOWN_BUTTON + BUTTON_WIDTH + BUTTON_SPACING
-#
-# # UP button's Y-coordinate (above the DOWN button)
-# Y_UP_BUTTON = Y_BUTTON_BOTTOM_ROW + BUTTON_HEIGHT + BUTTON_SPACING
-#
-# add_button(
-#     "UP",
-#     "B_up",
-#     GRID_OFF_X + X_DOWN_BUTTON,
-#     Y_UP_BUTTON,
-#     BUTTON_WIDTH,
-#     BUTTON_HEIGHT,
-#     "move_player(0, -1);",
-# )
-#
-# add_button(
-#     "LEFT",
-#     "B_left",
-#     GRID_OFF_X + X_LEFT_BUTTON,
-#     Y_BUTTON_BOTTOM_ROW,
-#     BUTTON_WIDTH,
-#     BUTTON_HEIGHT,
-#     "move_player(-1, 0);",
-# )
-#
-# add_button(
-#     "DOWN",
-#     "B_down",
-#     GRID_OFF_X + X_DOWN_BUTTON,
-#     Y_BUTTON_BOTTOM_ROW,
-#     BUTTON_WIDTH,
-#     BUTTON_HEIGHT,
-#     "move_player(0, 1);",
-# )
-#
-# add_button(
-#     "RIGHT",
-#     "B_right",
-#     GRID_OFF_X + X_RIGHT_BUTTON,
-#     Y_BUTTON_BOTTOM_ROW,
-#     BUTTON_WIDTH,
-#     BUTTON_HEIGHT,
-#     "move_player(1, 0);",
-# )
-#
-# add_button(
-#     "FIRE",
-#     "B_fire",
-#     GRID_OFF_X + X_RIGHT_BUTTON + BUTTON_WIDTH + BUTTON_SPACING,
-#     Y_BUTTON_BOTTOM_ROW,
-#     BUTTON_WIDTH,
-#     BUTTON_HEIGHT,
-#     "fire_bullet();",
-# )
-#
-# # Start Game button (its position can remain relatively central to the grid)
-# add_button(
-#     "Start Square!",
-#     "B_start",
-#     GRID_OFF_X + (GRID_WIDTH * PX_SIZE) / 2 - 50,
-#     GRID_OFF_Y + (GRID_HEIGHT * PX_SIZE) / 2 - 50,
-#     100,
-#     100,
-#     "game_init();",
-# )
-#
-# # Text input for keyboard controls
-# # Position it below the entire button block
-# TEXT_INPUT_Y = (
-#     Y_BUTTON_BOTTOM_ROW - 20 - 50
-# )  # 20px padding below buttons, then 50px for text field height
-# add_text(
-#     "Type WASD/Arrows here to move",
-#     "T_input",
-#     GRID_OFF_X + 0,  # Align with left-most button
-#     TEXT_INPUT_Y,
-#     GRID_WIDTH * PX_SIZE,
-#     50,
-#     "handle_input(event);",
-# )
 
 # Calculate positions for the control block
 # We'll place the controls centered below the grid
