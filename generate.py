@@ -77,6 +77,7 @@ stream
 
 // --- Core PDF JavaScript Setup ---
 // Hacky wrapper to work with a callback instead of a string
+// This allows app.setInterval to call a named function or an anonymous one.
 function setInterval(cb, ms) {
     evalStr = "(" + cb.toString() + ")();";
     return app.setInterval(evalStr, ms);
@@ -88,71 +89,33 @@ function rand() {
     return rand_seed = rand_seed * 16807 % 2147483647;
 }
 
-// Bullets Array
-var bullets = [];
-
-// Create and shoot a bullet
-function fire_bullet() {
-    bullets.push({ x: player_x, y: player_y - 1, color: BULLET_COLOR });
-}
-
-// Create and spawn a new enemy object
-function spawn_enemy() {
-    var random_x = Math.floor(Math.random() * ###GRID_WIDTH###); // Random X position
-    enemies.push({ x: random_x, y: 0 }); // Start at the top row
-}
-
-// Update bullets and redraw them
-function update_bullets() {
-    for (var i = 0; i < bullets.length; ++i) {
-        bullets[i].y -= 1;
-    }
-
-    // Remove bullets off screen
-    bullets = bullets.filter(function (b) {
-        return b.y >= 0;
-    });
-}
-
-// Draw bullets
-function draw_bullets() {
-    for (var i = 0; i < bullets.length; ++i) {
-        set_pixel(bullets[i].x, bullets[i].y, true, bullets[i].color);
-    }
-}
-
-// Check for collisions between bullets and enemies
-function check_collisions() {
-    // Iterate through all active bullets
-    for (var i = bullets.length - 1; i >= 0; i--) {
-        var bullet = bullets[i];
-
-        // Iterate through all active enemies
-        for (var j = enemies.length - 1; j >= 0; j--) {
-            var enemy = enemies[j];
-
-            // Check if bullet and enemy occupy the same grid coordinates
-            if (bullet.x === enemy.x && bullet.y === enemy.y) {
-                bullets.splice(i, 1); // Remove the bullet
-                enemies.splice(j, 1); // Remove the enemy
-
-                break;
-            }
-        }
-    }
-}
-
 // --- Game Globals ---
-var player_x; // X position of the square
-var player_y; // Y position of the square
-var pixel_fields = []; // Array to hold references to PDF form fields (pixels)
-var player_color = [0.0, 0.7, 0.0];
+var player_x; // X position of the player
+var player_y; // Y position of the player
+
+// Arrays to hold references to PDF form fields (pixels) for each color type
+// This allows dynamic coloring by hiding/showing specific pre-colored fields.
+var pixel_fields = {
+    player: [], // For the player's specific color
+    bullet: [], // For bullet color
+    enemy: [],  // For enemy color
+    blast: [],  // For blast effect color
+    off: []     // For the default 'off' or hidden state (e.g., black)
+};
+
+var bullets = []; // Array to hold active bullet objects
 var enemies = []; // Array to hold falling enemy objects
-var ENEMY_COLOR = [1.0, 0.0, 0.0];
-var BULLET_COLOR = [1.0, 0.6, 0.0];
-var ENEMY_SPAWN_RATE = 3;
+
+// Define game colors as global variables for easy reference
+var PLAYER_COLOR_NAME = "PLAYER";
+var ENEMY_COLOR_NAME = "ENEMY";
+var BULLET_COLOR_NAME = "BULLET";
+var BLAST_COLOR_NAME = "BLAST";
+var OFF_COLOR_NAME = "OFF"; // Represents the hidden/off state of a pixel
+
+var ENEMY_SPAWN_RATE = 3; // How often enemies spawn
 var spawn_counter = 0;
-var TICK_INTERVAL = 50; // game refreshes (milliseconds)
+var TICK_INTERVAL = 50; // Game refresh rate in milliseconds
 var interval = 0; // Interval ID for clearing later
 
 // --- Game Functions ---
@@ -164,19 +127,31 @@ function set_controls_visibility(state) {
     this.getField("B_right").hidden = !state;
     this.getField("B_up").hidden = !state;
     this.getField("B_down").hidden = !state;
+    this.getField("B_fire").hidden = !state; // Also hide/show fire button
 }
 
 // Initializes the game state
 function game_init() {
-    // Gather references to pixel field objects
+    // Gather references to pixel field objects for all color variants
     for (var x = 0; x < ###GRID_WIDTH###; ++x) {
-        pixel_fields[x] = [];
+        pixel_fields.player[x] = [];
+        pixel_fields.bullet[x] = [];
+        pixel_fields.enemy[x] = [];
+        pixel_fields.blast[x] = [];
+        pixel_fields.off[x] = [];
         for (var y = 0; y < ###GRID_HEIGHT###; ++y) {
-            pixel_fields[x][y] = this.getField(`P_${x}_${y}`);
+            // PDF Y-coordinates are inverted for grid-based games (0 is bottom)
+            // Store references mapping game (x,y) to PDF field names.
+            var pdf_y = ###GRID_HEIGHT### - 1 - y;
+            pixel_fields.player[x][y] = this.getField(`P_${x}_${pdf_y}_${PLAYER_COLOR_NAME}`);
+            pixel_fields.bullet[x][y] = this.getField(`P_${x}_${pdf_y}_${BULLET_COLOR_NAME}`);
+            pixel_fields.enemy[x][y] = this.getField(`P_${x}_${pdf_y}_${ENEMY_COLOR_NAME}`);
+            pixel_fields.blast[x][y] = this.getField(`P_${x}_${pdf_y}_${BLAST_COLOR_NAME}`);
+            pixel_fields.off[x][y] = this.getField(`P_${x}_${pdf_y}_${OFF_COLOR_NAME}`);
         }
     }
 
-    // Set initial position of the square (center of the grid)
+    // Set initial position of the player (center of the grid, near bottom)
     player_x = Math.floor(###GRID_WIDTH### / 2);
     player_y = Math.floor(###GRID_HEIGHT### - 4);
 
@@ -193,7 +168,69 @@ function game_init() {
     draw();
 }
 
-// Handles user input from the text field
+// Sets the visibility of a single "pixel" (form field) based on color
+function set_pixel(x, y, state, color_name) {
+    // Boundary check for safety
+    if (x < 0 || y < 0 || x >= ###GRID_WIDTH### || y >= ###GRID_HEIGHT###) {
+        return;
+    }
+
+    // Hide all color variants at this position first
+    pixel_fields.player[x][y].hidden = true;
+    pixel_fields.bullet[x][y].hidden = true;
+    pixel_fields.enemy[x][y].hidden = true;
+    pixel_fields.blast[x][y].hidden = true;
+    pixel_fields.off[x][y].hidden = true;
+
+    if (state) {
+        // Show the specific color pixel field
+        switch(color_name) {
+            case PLAYER_COLOR_NAME:
+                pixel_fields.player[x][y].hidden = false;
+                break;
+            case BULLET_COLOR_NAME:
+                pixel_fields.bullet[x][y].hidden = false;
+                break;
+            case ENEMY_COLOR_NAME:
+                pixel_fields.enemy[x][y].hidden = false;
+                break;
+            case BLAST_COLOR_NAME:
+                pixel_fields.blast[x][y].hidden = false;
+                break;
+            default:
+                // If an unknown color is requested, show the 'off' pixel
+                pixel_fields.off[x][y].hidden = false;
+                break;
+        }
+    } else {
+        // If state is false, show the "off" pixel to clear the space
+        pixel_fields.off[x][y].hidden = false;
+    }
+}
+
+// Moves the player square by (dx, dy) and handles boundary checks
+function move_player(dx, dy) {
+    player_x += dx;
+    player_y += dy;
+
+    // Keep player within horizontal bounds
+    if (player_x < 0) {
+        player_x = 0;
+    } else if (player_x >= ###GRID_WIDTH###) {
+        player_x = ###GRID_WIDTH### - 1;
+    }
+
+    // Keep player within vertical bounds (player should not go above mid-screen approx)
+    var player_upper_bound = Math.floor(###GRID_HEIGHT### / 2);
+    if (player_y < player_upper_bound) {
+        player_y = player_upper_bound;
+    } else if (player_y >= ###GRID_HEIGHT###) {
+        player_y = ###GRID_HEIGHT### - 1;
+    }
+    draw(); // Redraw immediately after moving
+}
+
+// Handles user input from the text field (for keyboard controls)
 function handle_input(event) {
     var input_char = event.change.toLowerCase(); // Get the character typed
 
@@ -214,8 +251,8 @@ function handle_input(event) {
         case 'arrowright':
             move_player(1, 0);
             break;
-        case ' ': // Fire
-        case '/': // Fire
+        case ' ': // Fire (Spacebar)
+        case '/': // Fire (often used as 'fire' in text-based games)
             fire_bullet();
             break;
     }
@@ -223,48 +260,46 @@ function handle_input(event) {
     event.target.value = "";
 }
 
-// Moves the player square by (dx, dy) and handles boundary checks
-function move_player(dx, dy) {
-    player_x += dx;
-    player_y += dy;
 
-    // Keep player within horizontal bounds
-    if (player_x < 0) {
-        player_x = 0;
-    } else if (player_x >= ###GRID_WIDTH###) {
-        player_x = ###GRID_WIDTH### - 1;
-    }
-
-    // Keep player within vertical bounds
-    if (player_y < 0) {
-        player_y = 0;
-    } else if (player_y >= ###GRID_HEIGHT###) {
-        player_y = ###GRID_HEIGHT### - 1;
-    }
-    draw(); // Redraw immediately after moving
+// Create and shoot a bullet
+function fire_bullet() {
+    bullets.push({ x: player_x, y: player_y - 1, color_name: BULLET_COLOR_NAME });
 }
 
-// Sets the visibility of a single "pixel" (form field)
-function set_pixel(x, y, state, color_to_apply) {
-    // Boundary check for safety, though move_player should handle it
-    if (x < 0 || y < 0 || x >= ###GRID_WIDTH### || y >= ###GRID_HEIGHT###) {
-        return;
+// Update bullets and redraw them
+function update_bullets() {
+    for (var i = 0; i < bullets.length; ++i) {
+        bullets[i].y -= 1; // Move bullet up
     }
-    // PDF Y-coordinates are inverted for grid-based games (0 is bottom)
-    // So, 'y' (game coordinate) needs to be converted to 'PDF y-coordinate'
-    var pixel_field = pixel_fields[x][###GRID_HEIGHT### - 1 - y];
-    pixel_field.hidden = !state;
-    // Set field background color if state is true
-    if (state) {
-        pixel_field.fillColor = color_to_apply;
+
+    // Remove bullets off screen
+    bullets = bullets.filter(function (b) {
+        return b.y >= 0;
+    });
+}
+
+// Draw bullets
+function draw_bullets() {
+    for (var i = 0; i < bullets.length; ++i) {
+        set_pixel(bullets[i].x, bullets[i].y, true, bullets[i].color_name);
     }
 }
 
-// Draw enemies
-function draw_enemies() {
-    for (var i = 0; i < enemies.length; ++i) {
-        set_pixel(enemies[i].x, enemies[i].y, true, ENEMY_COLOR);
-    }
+// Triggers a temporary blast animation at (x, y)
+function trigger_blast(x, y) {
+    // Set pixel to blast color
+    set_pixel(x, y, true, BLAST_COLOR_NAME);
+
+    // After a short delay, set the pixel back to the 'off' state to simulate a flash
+    app.setInterval(function() {
+        set_pixel(x, y, false, OFF_COLOR_NAME); // Use OFF_COLOR_NAME for proper clearing
+    }, BLAST_DURATION);
+}
+
+// Create and spawn a new enemy object
+function spawn_enemy() {
+    var random_x = Math.floor(Math.random() * ###GRID_WIDTH###); // Random X position
+    enemies.push({ x: random_x, y: 0, color_name: ENEMY_COLOR_NAME }); // Start at the top row
 }
 
 // Update enemies and remove them if off-screen
@@ -274,9 +309,9 @@ function update_enemies() {
         enemies[i].y += 1; // Move down by one pixel
     }
 
-    // Remove enemies off screen
+    // Remove enemies off screen (if they go beyond the bottom of the grid)
     enemies = enemies.filter(function (e) {
-        return e.y >= 0; // Keep enemies that are on or above the bottom row
+        return e.y < ###GRID_HEIGHT###; // Keep enemies that are on or above the bottom edge
     });
 
     // Spawn new enemies periodically
@@ -287,18 +322,48 @@ function update_enemies() {
     }
 }
 
+// Draw enemies
+function draw_enemies() {
+    for (var i = 0; i < enemies.length; ++i) {
+        set_pixel(enemies[i].x, enemies[i].y, true, enemies[i].color_name);
+    }
+}
+
+// Check for collisions between bullets and enemies
+function check_collisions() {
+    // Iterate through all active bullets
+    for (var i = bullets.length - 1; i >= 0; i--) {
+        var bullet = bullets[i];
+
+        // Iterate through all active enemies
+        for (var j = enemies.length - 1; j >= 0; j--) {
+            var enemy = enemies[j];
+
+            // Check if bullet and enemy occupy the same grid coordinates
+            if (bullet.x === enemy.x && bullet.y === enemy.y) {
+                // Trigger blast animation at collision point
+                trigger_blast(bullet.x, bullet.y);
+
+                bullets.splice(i, 1); // Remove the bullet
+                enemies.splice(j, 1); // Remove the enemy
+
+                break; // A bullet can only hit one enemy at a time
+            }
+        }
+    }
+}
 
 // Draws the current state of the game (player, bullets, and enemies)
 function draw() {
-    // First, clear the entire grid by hiding all pixels
+    // First, clear the entire grid by setting all pixels to their 'off' state
     for (var x = 0; x < ###GRID_WIDTH###; ++x) {
         for (var y = 0; y < ###GRID_HEIGHT###; ++y) {
-            set_pixel(x, y, false); // Hide all pixels
+            set_pixel(x, y, false, OFF_COLOR_NAME); // Hide all pixels
         }
     }
 
     // Then, draw the player square at its current position with its current color
-    set_pixel(player_x, player_y, true, player_color);
+    set_pixel(player_x, player_y, true, PLAYER_COLOR_NAME);
 
     // Draw bullets
     draw_bullets();
@@ -382,7 +447,7 @@ PIXEL_OBJ = """
   /Ff 1
   /MK <<
     /BG [
-      ###COLOR###
+      ###COLOR_RGB###
     ]
     /BC [
       0.6 0.6 0.6
@@ -394,7 +459,7 @@ PIXEL_OBJ = """
     ###RECT###
   ]
   /Subtype /Widget
-  /T (P_###X###_###Y###)
+  /T (P_###X###_###Y###_###COLOR_NAME###)
   /Type /Annot
 >>
 endobj
@@ -521,6 +586,18 @@ GRID_DRAW_HEIGHT = GRID_HEIGHT * PX_SIZE
 GRID_OFF_X = (PAGE_WIDTH - GRID_DRAW_WIDTH) / 2
 GRID_OFF_Y = PAGE_HEIGHT - GRID_DRAW_HEIGHT - 80
 
+# Define colors for pixel variations
+COLOR_MAP = {
+    "PLAYER": "0.0 0.7 0.0",  # Green
+    "BULLET": "1.0 0.6 0.0",  # Orange
+    "ENEMY": "1.0 0.0 0.0",  # Red
+    "BLAST": "1.0 1.0 0.0",  # Yellow
+    "OFF": "0.0 0.0 0.0",  # Black (default hidden state)
+}
+
+# Define blast duration in milliseconds (for JS)
+BLAST_DURATION = 100
+
 # --- Global Variables for PDF Generation ---
 fields_text = ""  # Accumulates the PDF object definitions for fields
 field_indexes = []  # List of object indexes for all fields
@@ -615,21 +692,26 @@ playing_field = playing_field.replace(
 )
 add_field(playing_field)
 
-# Individual pixel fields for the grid
+# Individual pixel fields for the grid (multiple for each color variation)
 for x in range(GRID_WIDTH):
-    for y in range(GRID_HEIGHT):
-        pixel = PIXEL_OBJ
-        pixel = pixel.replace("###IDX###", f"{obj_idx_ctr} 0")
-        c = [0, 0, 0]  # Default pixel color (black)
-        pixel = pixel.replace("###COLOR###", f"{c[0]} {c[1]} {c[2]}")
-        # Position each pixel within the grid offset
-        pixel = pixel.replace(
-            "###RECT###",
-            f"{GRID_OFF_X+x*PX_SIZE} {GRID_OFF_Y+y*PX_SIZE} {GRID_OFF_X+x*PX_SIZE+PX_SIZE} {GRID_OFF_Y+y*PX_SIZE+PX_SIZE}",
-        )
-        pixel = pixel.replace("###X###", f"{x}")
-        pixel = pixel.replace("###Y###", f"{y}")
-        add_field(pixel)
+    for y_game in range(GRID_HEIGHT):
+        # PDF Y-coordinates are inverted, so map game_y to pdf_y for field naming
+        y_pdf = GRID_HEIGHT - 1 - y_game
+        for color_name, color_rgb in COLOR_MAP.items():
+            pixel = PIXEL_OBJ
+            pixel = pixel.replace("###IDX###", f"{obj_idx_ctr} 0")
+            pixel = pixel.replace("###COLOR_RGB###", color_rgb)
+            # Position each pixel within the grid offset
+            pixel = pixel.replace(
+                "###RECT###",
+                f"{GRID_OFF_X+x*PX_SIZE} {GRID_OFF_Y+y_pdf*PX_SIZE} {GRID_OFF_X+x*PX_SIZE+PX_SIZE} {GRID_OFF_Y+y_pdf*PX_SIZE+PX_SIZE}",
+            )
+            pixel = pixel.replace("###X###", f"{x}")
+            pixel = pixel.replace(
+                "###Y###", f"{y_pdf}"
+            )  # Use PDF Y for field naming consistent with rect
+            pixel = pixel.replace("###COLOR_NAME###", color_name)
+            add_field(pixel)
 
 # --- Generate UI Buttons and Text Fields ---
 # Movement buttons (positioned like a keyboard layout)
@@ -781,6 +863,7 @@ filled_pdf = filled_pdf.replace(
 )
 filled_pdf = filled_pdf.replace("###GRID_WIDTH###", f"{GRID_WIDTH}")
 filled_pdf = filled_pdf.replace("###GRID_HEIGHT###", f"{GRID_HEIGHT}")
+filled_pdf = filled_pdf.replace("BLAST_DURATION", f"{BLAST_DURATION}")
 
 # --- Write to PDF File ---
 # Open a file in write mode and save the generated PDF content
