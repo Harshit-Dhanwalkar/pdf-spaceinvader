@@ -121,6 +121,27 @@ function draw_bullets() {
     }
 }
 
+// Check for collisions between bullets and enemies
+function check_collisions() {
+    // Iterate through all active bullets
+    for (var i = bullets.length - 1; i >= 0; i--) {
+        var bullet = bullets[i];
+
+        // Iterate through all active enemies
+        for (var j = enemies.length - 1; j >= 0; j--) {
+            var enemy = enemies[j];
+
+            // Check if bullet and enemy occupy the same grid coordinates
+            if (bullet.x === enemy.x && bullet.y === enemy.y) {
+                bullets.splice(i, 1); // Remove the bullet
+                enemies.splice(j, 1); // Remove the enemy
+
+                break;
+            }
+        }
+    }
+}
+
 // --- Game Globals ---
 var player_x; // X position of the square
 var player_y; // Y position of the square
@@ -128,10 +149,10 @@ var pixel_fields = []; // Array to hold references to PDF form fields (pixels)
 var player_color = [0, 0, 0]; 
 var enemies = []; // Array to hold falling enemy objects
 var ENEMY_COLOR = [1, 0, 0];
-var ENEMY_SPAWN_RATE = 10;
+var ENEMY_SPAWN_RATE = 3;
 var spawn_counter = 0;
 
-var TICK_INTERVAL = 50; // How often the game refreshes (milliseconds)
+var TICK_INTERVAL = 50; // game refreshes (milliseconds)
 var interval = 0; // Interval ID for clearing later
 
 // --- Game Functions ---
@@ -290,6 +311,7 @@ function draw() {
 function game_tick() {
     update_bullets();
     update_enemies();
+    check_collisions();
     draw();
 }
 
