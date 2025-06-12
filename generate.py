@@ -152,7 +152,6 @@ var ENEMY_COLOR = [1.0, 0.0, 0.0];
 var BULLET_COLOR = [1.0, 0.6, 0.0];
 var ENEMY_SPAWN_RATE = 3;
 var spawn_counter = 0;
-
 var TICK_INTERVAL = 50; // game refreshes (milliseconds)
 var interval = 0; // Interval ID for clearing later
 
@@ -566,41 +565,29 @@ def add_button(label, name, x, y, width, height, js, button_color_rgb="0.75 0.75
     add_field(button)
 
 
-def add_text(label, name, x, y, width, height, js):
-    """Adds a text input field with associated JavaScript action (for keyboard input)."""
+def add_text(label, name, x, y, width, height, js="", read_only=False):
+    """Adds a text input field with associated JavaScript action (for keyboard input) or static text."""
     global obj_idx_ctr
-    script = STREAM_OBJ  # Template for the JavaScript action stream
-    script = script.replace("###IDX###", f"{obj_idx_ctr} 0")
-    script = script.replace("###CONTENT###", js)
-    add_field(script)
+    script_idx = "null"  # Default for no JS
+    if js:
+        script = STREAM_OBJ  # Template for the JavaScript action stream
+        script = script.replace("###IDX###", f"{obj_idx_ctr} 0")
+        script = script.replace("###CONTENT###", js)
+        add_field(script)
+        script_idx = f"{obj_idx_ctr-1} 0"  # Links to JS stream
 
     text = TEXT_OBJ  # Template for the text widget object
     text = text.replace("###IDX###", f"{obj_idx_ctr} 0")
-    text = text.replace("###SCRIPT_IDX###", f"{obj_idx_ctr-1} 0")  # Links to JS stream
+    text = text.replace("###SCRIPT_IDX###", script_idx)
     text = text.replace("###LABEL###", label)
     text = text.replace("###NAME###", name)
     text = text.replace("###RECT###", f"{x} {y} {x + width} {y + height}")
+
+    # Add read-only flag only if specified
+    if read_only:
+        text = text.replace("<<", "<<\n    /Ff 1")
+
     add_field(text)
-
-
-# def add_text(label, name, x, y, width, height, js=""): # Made js optional for static text
-#     """Adds a text input field with associated JavaScript action (for keyboard input) or static text."""
-#     global obj_idx_ctr
-#     script_idx = "null" # Default for no JS
-#     if js:
-#         script = STREAM_OBJ # Template for the JavaScript action stream
-#         script = script.replace("###IDX###", f"{obj_idx_ctr} 0")
-#         script = script.replace("###CONTENT###", js)
-#         add_field(script)
-#         script_idx = f"{obj_idx_ctr-1} 0" # Links to JS stream
-#
-#     text = TEXT_OBJ # Template for the text widget object
-#     text = text.replace("###IDX###", f"{obj_idx_ctr} 0")
-#     text = text.replace("###SCRIPT_IDX###", script_idx)
-#     text = text.replace("###LABEL###", label)
-#     text = text.replace("###NAME###", name)
-#     text = text.replace("###RECT###", f"{x} {y} {x + width} {y + height}")
-#     add_field(text)
 
 
 # --- Generate Grid Pixels ---
@@ -738,6 +725,23 @@ add_text(
     "handle_input(event);",
 )
 
+# --- Add Title ---
+TITLE_HEIGHT = 30
+TITLE_WIDTH = GRID_DRAW_WIDTH  # Same width as the grid
+TITLE_X = GRID_OFF_X
+TITLE_Y = GRID_OFF_Y + GRID_DRAW_HEIGHT + 20  # 20px above the grid
+
+# Add the title as a static text field (no JavaScript needed)
+add_text(
+    "SPACE INVADERS",
+    "T_title",
+    TITLE_X,
+    TITLE_Y,
+    TITLE_WIDTH,
+    TITLE_HEIGHT,
+    "",
+    read_only=True,
+)
 
 # --- Final PDF Assembly ---
 # Replace placeholders in the main PDF template
