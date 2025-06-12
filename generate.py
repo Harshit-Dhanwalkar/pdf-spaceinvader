@@ -475,9 +475,12 @@ TEXT_OBJ = """
             /S /JavaScript
         >>
     >>
+    /DA (/Helvetica ###FONT_SIZE### Tf 0 g)
     /F 4
     /FT /Tx
     /MK <<
+        /BC [ 0 0 0 ]
+        /BG [ ###BG_COLOR### ]
     >>
     /MaxLen 0
     /P 16 0 R
@@ -565,7 +568,18 @@ def add_button(label, name, x, y, width, height, js, button_color_rgb="0.75 0.75
     add_field(button)
 
 
-def add_text(label, name, x, y, width, height, js="", read_only=False):
+def add_text(
+    label,
+    name,
+    x,
+    y,
+    width,
+    height,
+    js="",
+    read_only=False,
+    bg_color="1 1 1",
+    font_size=12,
+):
     """Adds a text input field with associated JavaScript action (for keyboard input) or static text."""
     global obj_idx_ctr
     script_idx = "null"  # Default for no JS
@@ -579,11 +593,12 @@ def add_text(label, name, x, y, width, height, js="", read_only=False):
     text = TEXT_OBJ  # Template for the text widget object
     text = text.replace("###IDX###", f"{obj_idx_ctr} 0")
     text = text.replace("###SCRIPT_IDX###", script_idx)
-    text = text.replace("###LABEL###", label)
+    text = text.replace("###LABEL###", label.replace("\n", "\\n"))  # Handle newlines
     text = text.replace("###NAME###", name)
     text = text.replace("###RECT###", f"{x} {y} {x + width} {y + height}")
+    text = text.replace("###BG_COLOR###", bg_color)
+    text = text.replace("###FONT_SIZE###", str(font_size))
 
-    # Add read-only flag only if specified
     if read_only:
         text = text.replace("<<", "<<\n    /Ff 1")
 
@@ -712,35 +727,50 @@ add_button(
 # Text input for keyboard controls
 # Position it aligned with the control block, slightly above the key map text
 TEXT_INPUT_FIELD_HEIGHT = 25
-TEXT_INPUT_Y = BUTTON_BOTTOM_ROW_Y - 30 - TEXT_INPUT_FIELD_HEIGHT  # 30px padding
+TEXT_INPUT_Y = BUTTON_BOTTOM_ROW_Y - 30 - TEXT_INPUT_FIELD_HEIGHT
 add_text(
-    "",  # Keep label empty as instructions are separate
+    "type wasd to move",  # Keep label empty as instructions are separate
     "T_input",
     controls_block_start_x,
     TEXT_INPUT_Y,
-    controls_block_width
-    + FIRE_BUTTON_WIDTH
-    + BUTTON_SPACING * 2,  # Span across all buttons
+    controls_block_width + FIRE_BUTTON_WIDTH + BUTTON_SPACING * 2,
     TEXT_INPUT_FIELD_HEIGHT,
     "handle_input(event);",
+    bg_color="0.8 0.9 1.0",
 )
 
-# --- Add Title ---
-TITLE_HEIGHT = 30
-TITLE_WIDTH = GRID_DRAW_WIDTH  # Same width as the grid
+# --- Title ---
+TITLE_HEIGHT = 20
+TITLE_WIDTH = GRID_DRAW_WIDTH
 TITLE_X = GRID_OFF_X
-TITLE_Y = GRID_OFF_Y + GRID_DRAW_HEIGHT + 20  # 20px above the grid
+TITLE_Y = GRID_OFF_Y + GRID_DRAW_HEIGHT + 20
 
-# Add the title as a static text field (no JavaScript needed)
 add_text(
     "SPACE INVADERS",
-    "T_title",
+    "T_title_main",
     TITLE_X,
     TITLE_Y,
     TITLE_WIDTH,
     TITLE_HEIGHT,
     "",
     read_only=True,
+    bg_color="0.7 0.7 1.0",
+    font_size=14,
+)
+
+# positioned below the title
+GAP = 15
+add_text(
+    "GitHub: https://github.com/Harshit-Dhanwalkar/pdf-spaceinvader",
+    "T_title_github",
+    TITLE_X,
+    TITLE_Y - GAP - 2,  # Position below title with 2px gap
+    TITLE_WIDTH,
+    GAP,
+    "",
+    read_only=True,
+    bg_color="0.7 0.7 1.0",
+    font_size=8,
 )
 
 # --- Final PDF Assembly ---
