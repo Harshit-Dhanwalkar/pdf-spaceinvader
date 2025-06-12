@@ -93,7 +93,7 @@ var bullets = [];
 
 // Create and shoot a bullet
 function fire_bullet() {
-    bullets.push({ x: player_x, y: player_y - 1 });
+    bullets.push({ x: player_x, y: player_y - 1, color: BULLET_COLOR });
 }
 
 // Create and spawn a new enemy object
@@ -117,7 +117,7 @@ function update_bullets() {
 // Draw bullets
 function draw_bullets() {
     for (var i = 0; i < bullets.length; ++i) {
-        set_pixel(bullets[i].x, bullets[i].y, true, [0, 0, 1]);
+        set_pixel(bullets[i].x, bullets[i].y, true, bullets[i].color);
     }
 }
 
@@ -146,9 +146,10 @@ function check_collisions() {
 var player_x; // X position of the square
 var player_y; // Y position of the square
 var pixel_fields = []; // Array to hold references to PDF form fields (pixels)
-var player_color = [0, 0, 0]; 
+var player_color = [0.0, 0.7, 0.0];
 var enemies = []; // Array to hold falling enemy objects
-var ENEMY_COLOR = [1, 0, 0];
+var ENEMY_COLOR = [1.0, 0.0, 0.0];
+var BULLET_COLOR = [1.0, 0.6, 0.0];
 var ENEMY_SPAWN_RATE = 3;
 var spawn_counter = 0;
 
@@ -245,7 +246,7 @@ function move_player(dx, dy) {
 }
 
 // Sets the visibility of a single "pixel" (form field)
-function set_pixel(x, y, state, color = player_color) {
+function set_pixel(x, y, state, color_to_apply) {
     // Boundary check for safety, though move_player should handle it
     if (x < 0 || y < 0 || x >= ###GRID_WIDTH### || y >= ###GRID_HEIGHT###) {
         return;
@@ -256,7 +257,7 @@ function set_pixel(x, y, state, color = player_color) {
     pixel_field.hidden = !state;
     // Set field background color if state is true
     if (state) {
-        pixel_field.fillColor = color;
+        pixel_field.fillColor = color_to_apply;
     }
 }
 
@@ -349,7 +350,7 @@ trailer
 %%EOF
 """
 
-# --- PDF Object Templates (Keep as is) ---
+# --- PDF Object Templates ---
 PLAYING_FIELD_OBJ = """
 ###IDX### obj
 <<
@@ -363,7 +364,7 @@ PLAYING_FIELD_OBJ = """
       0 0 0
     ]
   >>
-  /Border [ 0 0 1 ]
+  /Border [ 2 2 1 ]  # Border width of 1 points, with 2-unit rounded corners
   /P 16 0 R
   /Rect [
     ###RECT###
@@ -385,10 +386,10 @@ PIXEL_OBJ = """
       ###COLOR###
     ]
     /BC [
-      0.5 0.5 0.5
+      0.6 0.6 0.6
     ]
   >>
-  /Border [ 0 0 1 ]
+  /Border [ 0 0 0.5 ]
   /P 16 0 R
   /Rect [
     ###RECT###
@@ -417,7 +418,7 @@ BUTTON_AP_STREAM = """
 >>
 stream
 q
-0.75 g
+###BUTTON_COLOR### rg
 0 0 ###WIDTH### ###HEIGHT### re
 f
 Q
@@ -451,7 +452,7 @@ BUTTON_OBJ = """
   /Ff 65536
   /MK <<
     /BG [
-      0.75
+        0.75 0.75 0.75
     ]
     /CA (###LABEL###)
   >>
@@ -533,7 +534,7 @@ def add_field(field):
     obj_idx_ctr += 1
 
 
-def add_button(label, name, x, y, width, height, js):
+def add_button(label, name, x, y, width, height, js, button_color_rgb="0.75 0.75 0.75"):
     """Adds a button field with associated JavaScript action."""
     global obj_idx_ctr
     script = STREAM_OBJ  # Template for the JavaScript action stream
@@ -546,6 +547,9 @@ def add_button(label, name, x, y, width, height, js):
     ap_stream = ap_stream.replace("###TEXT###", label)
     ap_stream = ap_stream.replace("###WIDTH###", f"{width}")
     ap_stream = ap_stream.replace("###HEIGHT###", f"{height}")
+    ap_stream = ap_stream.replace(
+        "###BUTTON_COLOR###", button_color_rgb
+    )  # Set the color in AP stream
     add_field(ap_stream)
 
     button = BUTTON_OBJ  # Template for the button widget object
@@ -655,6 +659,7 @@ add_button(
     BUTTON_WIDTH,
     BUTTON_HEIGHT,
     "move_player(0, -1);",
+    "0.75 0.75 0.75",
 )
 
 add_button(
@@ -665,6 +670,7 @@ add_button(
     BUTTON_WIDTH,
     BUTTON_HEIGHT,
     "move_player(-1, 0);",
+    "0.75 0.75 0.75",
 )
 
 add_button(
@@ -675,6 +681,7 @@ add_button(
     BUTTON_WIDTH,
     BUTTON_HEIGHT,
     "move_player(0, 1);",
+    "0.75 0.75 0.75",
 )
 
 add_button(
@@ -685,6 +692,7 @@ add_button(
     BUTTON_WIDTH,
     BUTTON_HEIGHT,
     "move_player(1, 0);",
+    "0.75 0.75 0.75",
 )
 
 # Fire Button - placed to the right of the movement buttons
@@ -699,6 +707,7 @@ add_button(
     FIRE_BUTTON_WIDTH,
     BUTTON_HEIGHT,
     "fire_bullet();",
+    "1.0 0.4 0.2",
 )
 
 # Start Game button (its position can remain relatively central to the grid)
