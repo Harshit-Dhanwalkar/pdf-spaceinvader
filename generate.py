@@ -115,7 +115,7 @@ var OFF_COLOR_NAME = "OFF"; // Represents the hidden/off state of a pixel
 
 var ENEMY_SPAWN_RATE = 3; // How often enemies spawn
 var spawn_counter = 0;
-var TICK_INTERVAL = 50; // Game refresh rate in milliseconds
+var TICK_INTERVAL = 70; // Game refresh rate in milliseconds
 var interval = 0; // Interval ID for clearing later
 
 // --- Game Functions ---
@@ -450,7 +450,7 @@ PIXEL_OBJ = """
       ###COLOR_RGB###
     ]
     /BC [
-      0.6 0.6 0.6
+      0.7 0.7 0.7
     ]
   >>
   /Border [ 0 0 0.5 ]
@@ -800,7 +800,7 @@ add_button(
     "Start Game!",
     "B_start",
     GRID_OFF_X + (GRID_DRAW_WIDTH / 2) - 50,
-    GRID_OFF_Y - 80,  # Adjust Y to be above the controls
+    GRID_OFF_Y + (GRID_DRAW_HEIGHT / 2),
     100,
     40,
     "game_init();",
@@ -822,9 +822,11 @@ add_text(
 )
 
 # --- Title ---
-TITLE_HEIGHT = 20
-TITLE_WIDTH = GRID_DRAW_WIDTH
-TITLE_X = GRID_OFF_X
+TITLE_HEIGHT = 25
+TITLE_WIDTH = 180
+TITLE_X = (PAGE_WIDTH - TITLE_WIDTH) / 2
+TITLE_X_1 = GRID_OFF_X
+TITLE_WIDTH_1 = GRID_DRAW_WIDTH
 TITLE_Y = GRID_OFF_Y + GRID_DRAW_HEIGHT + 20
 
 add_text(
@@ -837,7 +839,7 @@ add_text(
     "",
     read_only=True,
     bg_color="0.7 0.7 1.0",
-    font_size=14,
+    font_size=20,
 )
 
 # positioned below the title
@@ -845,13 +847,13 @@ GAP = 15
 add_text(
     "GitHub: https://github.com/Harshit-Dhanwalkar/pdf-spaceinvader",
     "T_title_github",
-    TITLE_X,
-    TITLE_Y - GAP - 2,  # Position below title with 2px gap
-    TITLE_WIDTH,
+    TITLE_X_1,
+    TITLE_Y - GAP - 2,
+    TITLE_WIDTH_1,
     GAP,
     "",
     read_only=True,
-    bg_color="0.7 0.7 1.0",
+    bg_color="0.8 0.8 1.0",
     font_size=8,
 )
 
